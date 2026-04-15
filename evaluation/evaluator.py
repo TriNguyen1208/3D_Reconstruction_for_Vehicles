@@ -12,60 +12,69 @@ class Evaluator:
         self.accuracies = []
         self.completenesses = []
 
-    def update_pose_metrics(self, pred_extrinsic, gt_pose):
+    def update_pose_metrics(self, pred_extrinsics, gt_poses):
         """
-        This function processes and stores camera pose errors for a single frame.
+        This function processes and stores camera pose errors for a sequence of frames.
 
         Args:
-            pred_extrinsic (np.ndarray): A 3x4 extrinsic camera matrix 
-                from the model prediction.
-            gt_pose (list): A 16-item flat list representing the 4x4 transformation 
-                matrix (Column-Major) from the Ground Truth ARFrame.
+            pred_extrinsics (list or np.ndarray): Extrinsic camera matrices for all frames 
+                (e.g., shape N x 3 x 4).
+            gt_poses (list or np.ndarray): Ground Truth ARFrame matrices for all frames 
+                (e.g., shape N x 16).
 
         Returns:
-            tuple: A tuple (rra, rta) containing:
-                - rra (float): Relative Rotation Accuracy in degrees.
-                - rta (float): Relative Translation Accuracy (angular) in degrees.
+            tuple: (batch_rra, batch_rta) containing lists of errors for the processed sequence.
         """
         
-        R_p = pred_extrinsic[:3, :3]
-        t_p = pred_extrinsic[:3, 3]
+        batch_rra = []
+        batch_rta = []
         
-        R_g, t_g = self.convert_ar_pose_to_opencv(gt_pose)
-        
-        rra = self.compute_rra(R_p, R_g)
-        rta = self.compute_rta(t_p, t_g)
-        
-        self.rra_errors.append(rra)
-        self.rta_errors.append(rta)
-        
-        return rra, rta
-
-    def update_geometric_metrics(self, pts_pred_aligned, pts_gt_raw, car_mask_pred):
-        """
-        This function computes and stores semantic-aware Chamfer Distance metrics (Accuracy and Completeness) for a single frame.
-
-        Args:
-            pts_pred_aligned (np.ndarray): Aligned predicted point cloud (N, 3).
-            pts_gt_raw (np.ndarray): Raw Ground Truth point cloud (M, 3).
-            car_mask_pred (np.ndarray): Binary segmentation mask for the target vehicle.
-
-        Returns:
-            tuple: (accuracy, completeness, overall) scores for the current frame.
-        """
-        
-        acc, comp, overall = self.compute_chamfer_distance(
-            pts_pred_aligned, 
-            pts_gt_raw, 
-            car_mask_pred, 
-            self.num_samples
-        )
-        
-        if acc != float('inf') and comp != float('inf'):
-            self.accuracies.append(acc)
-            self.completenesses.append(comp)
+        for p_ext, g_pose in zip(pred_extrinsics, gt_poses):
+            R_p = p_ext[:3, :3]
+            t_p = p_ext[:3, 3]
             
-        return acc, comp, overall
+            R_g, t_g = self.convert_ar_pose_to_opencv(g_pose)
+            
+            rra = self.compute_rra(R_p, R_g)
+            rta = self.compute_rta(t_p, t_g)
+            
+            self.rra_errors.append(rra)
+            self.rta_errors.append(rta)
+            
+            batch_rra.append(rra)
+            batch_rta.append(rta)
+            
+        return batch_rra, batch_rta
+
+    def update_geometric_metrics(self, pts_preds_raw, gt_vertices):
+        """
+        Modified to compare frame-wise predictions against a static global mesh.
+        """
+        batch_acc, batch_comp, batch_overall = [], [], []
+        
+        for p_pred in pts_preds_raw:
+            # 1. Alignment
+            # Since there is no pixel-correspondence with a mesh, 
+            # we assume points are either already in world space 
+            # or we align using the centroids/bboxes.
+            p_pred_flat = p_pred.reshape(-1, 3)
+            
+            # 2. Compute Chamfer against the WHOLE mesh
+            acc, comp, overall = self.compute_chamfer_distance(
+                p_pred_flat, 
+                gt_vertices, # Compare against the full static mesh
+                self.num_samples
+            )
+            
+            if acc != float('inf'):
+                self.accuracies.append(acc)
+                self.completenesses.append(comp)
+                
+            batch_acc.append(acc)
+            batch_comp.append(comp)
+            batch_overall.append(overall)
+            
+        return batch_acc, batch_comp, batch_overall
 
     def get_summary(self):
         """
@@ -84,29 +93,25 @@ class Evaluator:
             self.auc_threshold
         )
         
-        return {
+        result = {
             "num_frames": len(self.accuracies),
             "auc": auc_score,
             "acc_mean": np.mean(self.accuracies) if self.accuracies else float('inf'),
             "comp_mean": np.mean(self.completenesses) if self.completenesses else float('inf'),
             "overall_cd": (np.mean(self.accuracies) + np.mean(self.completenesses)) / 2 if self.accuracies else float('inf')
         }
+        
+        print(result)
+        
+        return result
 
 
 
     @staticmethod
     def apply_umeyama_alignment(source, target):
         """
-        This function computes the optimal similarity transform (rotation, translation, and scale) to align two corresponding point sets.
-
-        Args:
-            source (np.ndarray): Predicted points of shape (N, 3).
-            target (np.ndarray): Ground Truth points of shape (N, 3).
-
-        Returns:
-            tuple: (R, t, s, transformed_source) containing the 3x3 rotation matrix, 3x1 translation vector, scale factor, and the aligned source points.
+        Computes the optimal similarity transform (R, t, s) to align source to target.
         """
-        
         n, m = source.shape
         mu_s = source.mean(axis=0)
         mu_t = target.mean(axis=0)
@@ -224,29 +229,12 @@ class Evaluator:
         return (auc_val / threshold) * 100
 
     @staticmethod
-    def compute_chamfer_distance(pts_pred, pts_gt, car_mask_pred, num_samples=5000):
+    def compute_chamfer_distance(pts_pred, pts_gt, num_samples=5000):
         """
-        This function computes the Accuracy, Completeness, and Overall Chamfer Distance using masked and sampled point clouds.
-
-        Args:
-            pts_pred (np.ndarray): Predicted point cloud (N, 3).
-            pts_gt (np.ndarray): Ground truth point cloud (M, 3).
-            car_mask_pred (np.ndarray): Semantic mask for filtering predicted car points.
-            num_samples (int): Number of points to sample for distance computation (default is 5000).
-
-        Returns:
-            tuple: (accuracy, completeness, overall_cd) scores.
+        Computes Accuracy, Completeness, and Overall CD after cleaning zero points.
         """
-        
-        clean_pred = pts_pred[car_mask_pred.squeeze() > 0.5]
-        
-        if len(clean_pred) > 0:
-            min_b, max_b = clean_pred.min(axis=0), clean_pred.max(axis=0)
-            padding = 0.1
-            gt_mask = np.all((pts_gt >= min_b - padding) & (pts_gt <= max_b + padding), axis=1)
-            clean_gt = pts_gt[gt_mask]
-        else:
-            return float('inf'), float('inf'), float('inf')
+        clean_pred = pts_pred[np.any(pts_pred != 0, axis=-1)]
+        clean_gt = pts_gt[np.any(pts_gt != 0, axis=-1)]
 
         if len(clean_pred) == 0 or len(clean_gt) == 0:
             return float('inf'), float('inf'), float('inf')
@@ -260,11 +248,24 @@ class Evaluator:
         s_gt = get_sample(clean_gt, num_samples)
 
         tree_gt = cKDTree(s_gt)
-        dist_p, _ = tree_gt.query(s_pred)
-        accuracy = np.mean(np.square(dist_p))
+        accuracy = np.mean(np.square(tree_gt.query(s_pred)[0]))
         
         tree_pred = cKDTree(s_pred)
-        dist_g, _ = tree_pred.query(s_gt)
-        completeness = np.mean(np.square(dist_g))
+        completeness = np.mean(np.square(tree_pred.query(s_gt)[0]))
 
         return accuracy, completeness, (accuracy + completeness) / 2.0
+    
+    def get_gt_poses(folder_path):
+        json_files = sorted(glob.glob(os.path.join(folder_path, "frame_*.json")))
+        gt_trajectories = []
+        
+        for f in json_files:
+            with open(f, 'r') as j:
+                data = json.load(j)
+                # Ma trận 4x4 từ ARKit
+                matrix = np.array(data['cameraPoseARFrame']).reshape(4, 4)
+                # Trích xuất tọa độ tịnh tiến (x, y, z) - cột thứ 4
+                translation = matrix[:3, 3]
+                gt_trajectories.append(translation)
+                
+        return np.array(gt_trajectories)

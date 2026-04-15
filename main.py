@@ -1,10 +1,13 @@
 import argparse
 import os
-from vggt.models.vggt import VGGT
+import trimesh
 import torch
+
+from vggt.models.vggt import VGGT
 from yolo.models.yolo import YoloSegment
 from utils.run_model import run_model
 from utils.visual_util import save_to_obj
+from evaluation.evaluator import Evaluator
 
 def parse_args():
     parser = argparse.ArgumentParser(
@@ -36,7 +39,7 @@ def parse_args():
     # Optional paths
     parser.add_argument(
         "-mp", "--metrics-path", type=str,
-        help="Path to metrics file (default: results.csv)"
+        help="Path to metrics file (default: results.txt)"
     )
 
     parser.add_argument(
@@ -62,7 +65,7 @@ def parse_args():
     # ===================== DEFAULT LOGIC =====================
 
     if args.metrics:
-        args.metrics_path = args.metrics_path or "results.csv"
+        args.metrics_path = args.metrics_path or "results.txt"
     else:
         args.metrics_path = None
 
@@ -91,7 +94,17 @@ def main():
         save_to_obj(predictions=predictions, obj_path=args.obj_path, is_fg_mask=args.fg_mask)
 
     if args.metrics:
-        pass
+        gt_mesh = trimesh.load(args.obj_path)
+        gt_points = gt_mesh.vertices
+        
+        gt_poses = get_gt_poses(args.path_dataset)
+        
+        evaluator = Evaluator()
+    
+        evaluator.update_pose_metrics(predictions["extrinsic"], gt_poses)
+        evaluator.update_geometric_metrics(predictions["world_points"], gt_points)
+        evaluator.get_summary()
+        
 
 if __name__ == "__main__":
     main()

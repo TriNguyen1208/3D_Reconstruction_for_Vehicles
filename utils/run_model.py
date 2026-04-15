@@ -76,4 +76,4 @@ def run_model(target_dir, model, yolo, device, is_fg_mask=True) -> dict:
     predictions["images"] = images.cpu().numpy()
     torch.cuda.empty_cache()
     
-    return predictions
+    return predictions, fg_mask
