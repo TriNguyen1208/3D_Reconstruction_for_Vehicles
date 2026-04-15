@@ -178,7 +178,7 @@ class Evaluator:
 
         flip_yz = np.array([
             [1,  0,  0],
-            [0, -1,  0],
+            [0, 1,  0],
             [0,  0, -1]
         ])
         
