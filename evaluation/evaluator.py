@@ -178,8 +178,8 @@ class Evaluator:
 
         flip_yz = np.array([
             [1,  0,  0],
-            [0, 1,  0],
-            [0,  0, -1]
+            [0, 0,  -1],
+            [0,  1, 0]
         ])
         
         R_opencv = flip_yz @ R_raw
