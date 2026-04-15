@@ -1,5 +1,6 @@
 import numpy as np
 import os
+import trimesh
 from scipy.spatial import cKDTree
 
 class Evaluator:
