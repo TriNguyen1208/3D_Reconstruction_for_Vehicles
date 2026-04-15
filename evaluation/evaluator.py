@@ -296,13 +296,11 @@ class Evaluator:
     @staticmethod
     def get_gt_poses(folder_path):
         json_files = sorted(glob.glob(os.path.join(folder_path, "frame_*.json")))
-        gt_trajectories = []
+        gt_matrices = []
         
         for f in json_files:
             with open(f, 'r') as j:
                 data = json.load(j)
-                matrix = np.array(data['cameraPoseARFrame']).reshape(4, 4)
-                translation = matrix[:3, 3]
-                gt_trajectories.append(translation)
-                
-        return np.array(gt_trajectories)
+                gt_matrices.append(data['cameraPoseARFrame'])
+                    
+        return np.array(gt_matrices)
