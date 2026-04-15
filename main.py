@@ -94,17 +94,14 @@ def main():
         save_to_obj(predictions=predictions, obj_path=args.obj_path, is_fg_mask=args.fg_mask)
 
     if args.metrics:
-        gt_mesh = trimesh.load(args.obj_path)
-        gt_points = gt_mesh.vertices
-        
-        gt_poses = get_gt_poses(args.path_dataset)
-        
         evaluator = Evaluator()
+
+        gt_points = evaluator.get_gt_points(args.path_dataset)        
+        gt_poses = evaluator.get_gt_poses(args.path_dataset)
     
         evaluator.update_pose_metrics(predictions["extrinsic"], gt_poses)
         evaluator.update_geometric_metrics(predictions["world_points"], gt_points)
         evaluator.get_summary()
-        
 
 if __name__ == "__main__":
     main()

@@ -255,6 +255,39 @@ class Evaluator:
 
         return accuracy, completeness, (accuracy + completeness) / 2.0
     
+    def get_gt_points(folder_path):
+        """
+        This function searches for a single .obj file in the specified folder 
+        and returns its vertices as a point cloud.
+
+        Args:
+            folder_path (str): The path to the folder containing the Ground Truth mesh.
+
+        Returns:
+            np.ndarray: The vertices of the mesh of shape (M, 3).
+
+        Raises:
+            FileNotFoundError: If no .obj file is found in the folder.
+            ValueError: If more than one .obj file is found.
+        """
+        obj_files = [f for f in os.listdir(folder_path) if f.lower().endswith('.obj')]
+
+        if len(obj_files) == 0:
+            raise FileNotFoundError(f"Error: No .obj files found in {folder_path}")
+        
+        if len(obj_files) > 1:
+            raise ValueError(
+                f"Error: Multiple .obj files found in {folder_path}. "
+                f"Found: {obj_files}. Please ensure only one GT mesh is present."
+            )
+
+        mesh_path = os.path.join(folder_path, obj_files[0])
+        gt_mesh = trimesh.load(mesh_path)
+        
+        gt_points = np.array(gt_mesh.vertices)
+        
+        return gt_points
+    
     def get_gt_poses(folder_path):
         json_files = sorted(glob.glob(os.path.join(folder_path, "frame_*.json")))
         gt_trajectories = []
@@ -262,9 +295,7 @@ class Evaluator:
         for f in json_files:
             with open(f, 'r') as j:
                 data = json.load(j)
-                # Ma trận 4x4 từ ARKit
                 matrix = np.array(data['cameraPoseARFrame']).reshape(4, 4)
-                # Trích xuất tọa độ tịnh tiến (x, y, z) - cột thứ 4
                 translation = matrix[:3, 3]
                 gt_trajectories.append(translation)
                 
