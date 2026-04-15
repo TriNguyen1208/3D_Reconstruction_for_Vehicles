@@ -35,21 +35,21 @@ class Evaluator:
         
         for p_ext, g_pose in zip(pred_extrinsics, gt_poses):
             R_p = p_ext[:3, :3]
-            t_p_raw = p_ext[:3, 3]
-            t_p = -R_p.T @ t_p_raw
-            
             R_g, t_g_raw = self.convert_ar_pose_to_opencv(g_pose)
-            t_g = -R_g.T @ t_g_raw
             
-            print(f"DEBUG: GT Translation: {t_g}")
-            print(f"DEBUG: Pred Translation: {t_p}")
+            t_p_raw = p_ext[:3, 3]
+            
+            c_p = -R_p.T @ t_p_raw
+            c_g = -R_g.T @ t_g_raw
+            
+            print(f"DEBUG | GT Center:   {c_g}")
+            print(f"DEBUG | Pred Center: {c_p}")
             
             rra = self.compute_rra(R_p, R_g)
-            rta = self.compute_rta(t_p, t_g)
+            rta = self.compute_rta(c_p, c_g)
             
             self.rra_errors.append(rra)
             self.rta_errors.append(rta)
-            
             batch_rra.append(rra)
             batch_rta.append(rta)
             
