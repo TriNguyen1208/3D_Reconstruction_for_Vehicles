@@ -334,7 +334,8 @@ class Evaluator:
                     gt_matrices.append(np.eye(4))
                 else:
                     # Calculate trajectory relative to the first frame
-                    relative_pose = first_pose_inv @ matrix
+                    # relative_pose = first_pose_inv @ matrix
+                    relative_pose = matrix @ first_pose_inv
                     gt_matrices.append(relative_pose)
                     
         return gt_matrices
