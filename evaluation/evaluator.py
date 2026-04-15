@@ -82,33 +82,51 @@ class Evaluator:
 
     def get_summary(self):
         """
-        This function aggregates stored frame data to compute final benchmark metrics including AUC@30 and Mean Chamfer Distance.
-
-        Args:
-            None (uses internal state from accumulated frames).
-
-        Returns:
-            dict: A dictionary containing the sequence-level AUC score, mean Accuracy, mean Completeness, and Overall CD.
+        Aggregates frame data, computes final metrics, and prints a formatted 
+        summary table for research reporting.
         """
-        
         auc_score = self.compute_pose_auc(
             self.rra_errors, 
             self.rta_errors, 
             self.auc_threshold
         )
         
+        # Calculate means
+        acc_mean = np.mean(self.accuracies) if self.accuracies else float('inf')
+        comp_mean = np.mean(self.completenesses) if self.completenesses else float('inf')
+        overall_cd = (acc_mean + comp_mean) / 2 if self.accuracies else float('inf')
+        
+        # Helpful for debugging your 0.0 AUC
+        avg_rra = np.mean(self.rra_errors) if self.rra_errors else 0.0
+        avg_rta = np.mean(self.rta_errors) if self.rta_errors else 0.0
+
         result = {
             "num_frames": len(self.accuracies),
             "auc": auc_score,
-            "acc_mean": np.mean(self.accuracies) if self.accuracies else float('inf'),
-            "comp_mean": np.mean(self.completenesses) if self.completenesses else float('inf'),
-            "overall_cd": (np.mean(self.accuracies) + np.mean(self.completenesses)) / 2 if self.accuracies else float('inf')
+            "acc_mean": acc_mean,
+            "comp_mean": comp_mean,
+            "overall_cd": overall_cd,
+            "rra_avg": avg_rra,
+            "rta_avg": avg_rta
         }
-        
-        print(result)
-        
-        return result
 
+        # Professional Table Printing
+        print("\n" + "="*45)
+        print(f"{'3D RECONSTRUCTION EVALUATION SUMMARY':^45}")
+        print("="*45)
+        print(f"{'Metric':<25} | {'Value':<15}")
+        print("-" * 45)
+        print(f"{'Frames Processed':<25} | {result['num_frames']:<15}")
+        print(f"{'AUC@' + str(self.auc_threshold) + ' (↑)':<25} | {result['auc']:<15.2f}")
+        print(f"{'Avg RRA (Rotation °) ↓':<25} | {result['rra_avg']:<15.2f}")
+        print(f"{'Avg RTA (Transl. °) ↓':<25} | {result['rta_avg']:<15.2f}")
+        print("-" * 45)
+        print(f"{'Accuracy (↓)':<25} | {result['acc_mean']:<15.6f}")
+        print(f"{'Completeness (↓)':<25} | {result['comp_mean']:<15.6f}")
+        print(f"{'Overall CD (↓)':<25} | {result['overall_cd']:<15.6f}")
+        print("="*45 + "\n")
+
+        return result
 
 
     @staticmethod
@@ -302,5 +320,5 @@ class Evaluator:
             with open(f, 'r') as j:
                 data = json.load(j)
                 gt_matrices.append(data['cameraPoseARFrame'])
-                    
+
         return np.array(gt_matrices)
