@@ -45,8 +45,8 @@ class Evaluator:
             c_g = t_g_raw 
             
             # 3. Corrected Debug (comparing the actual movement vectors)
-            print(f"DEBUG | GT Pos:   {c_g}")
-            print(f"DEBUG | Pred Pos: {c_p}")
+            # print(f"DEBUG | GT Pos:   {c_g}")
+            # print(f"DEBUG | Pred Pos: {c_p}")
             
             # 4. Compute Errors
             rra = self.compute_rra(R_p, R_g)
@@ -334,8 +334,7 @@ class Evaluator:
                     gt_matrices.append(np.eye(4))
                 else:
                     # Calculate trajectory relative to the first frame
-                    # relative_pose = first_pose_inv @ matrix
-                    relative_pose = np.linalg.inv(first_pose_inv @ matrix)
+                    relative_pose = first_pose_inv @ matrix
                     gt_matrices.append(relative_pose)
                     
         return gt_matrices
