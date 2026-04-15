@@ -179,8 +179,8 @@ class Evaluator:
             [0,  0, -1]
         ])
         
-        R_opencv = np.dot(flip_yz, R_raw)
-        t_opencv = np.dot(flip_yz, t_raw)
+        R_opencv = flip_yz @ R_raw
+        t_opencv = flip_yz @ t_raw
         return R_opencv, t_opencv
 
     @staticmethod
