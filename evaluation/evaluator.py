@@ -162,7 +162,6 @@ class Evaluator:
 
     @staticmethod
     def convert_ar_pose_to_opencv(gt_pose):
-        # 1. Handle input if it's already a matrix or still a list
         if isinstance(gt_pose, list) or (isinstance(gt_pose, np.ndarray) and gt_pose.size == 16):
             # ARFrame is Row-Major for translation at [3, 7, 11]
             gt_matrix = np.array(gt_pose).reshape(4, 4)
@@ -171,20 +170,18 @@ class Evaluator:
             
         R_raw = gt_matrix[:3, :3]
         t_raw = gt_matrix[:3, 3]
-
-        # 2. The "Corrective" Matrix
-        # Based on your DEBUG: X must be negated, and Y/Z need a 90-deg correction
-        # This matrix swaps/flips axes to move from ARKit-space to Model-space
+        
         transform = np.array([
-            [1,  0,  0], # Flip X (solves the +/- 0.20 mismatch)
-            [ 0,  -1,  0], # Map Z to Y
-            [ 0, 0,  -1]  # Map -Y to Z
+            [1,  0,  0],
+            [ 0,  -1,  0],
+            [ 0, 0,  -1]
         ])
         
         R_opencv = transform @ R_raw
         t_opencv = transform @ t_raw
         
-        return R_opencv, t_opencv
+        # return R_opencv, t_opencv
+        return R_raw, t_raw
 
     @staticmethod
     def compute_rra(R_pred, R_gt):
