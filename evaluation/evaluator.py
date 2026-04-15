@@ -120,13 +120,13 @@ class Evaluator:
         print(f"{'Metric':<25} | {'Value':<15}")
         print("-" * 45)
         print(f"{'Frames Processed':<25} | {result['num_frames']:<15}")
-        print(f"{'AUC@' + str(self.auc_threshold) + ' (↑)':<25} | {result['auc']:<15.2f}")
-        print(f"{'Avg RRA (Rotation °) ↓':<25} | {result['rra_avg']:<15.2f}")
-        print(f"{'Avg RTA (Transl. °) ↓':<25} | {result['rta_avg']:<15.2f}")
+        print(f"{'AUC@' + str(self.auc_threshold):<25} | {result['auc']:<15.2f}")
+        print(f"{'Avg RRA (Rotation °)':<25} | {result['rra_avg']:<15.2f}")
+        print(f"{'Avg RTA (Transl. °)':<25} | {result['rta_avg']:<15.2f}")
         print("-" * 45)
-        print(f"{'Accuracy (↓)':<25} | {result['acc_mean']:<15.6f}")
-        print(f"{'Completeness (↓)':<25} | {result['comp_mean']:<15.6f}")
-        print(f"{'Overall CD (↓)':<25} | {result['overall_cd']:<15.6f}")
+        print(f"{'Accuracy':<25} | {result['acc_mean']:<15.6f}")
+        print(f"{'Completeness':<25} | {result['comp_mean']:<15.6f}")
+        print(f"{'Overall CD':<25} | {result['overall_cd']:<15.6f}")
         print("="*45 + "\n")
 
         return result
@@ -162,28 +162,28 @@ class Evaluator:
 
     @staticmethod
     def convert_ar_pose_to_opencv(gt_pose):
-        """
-        This function converts a 16-element OpenGL-style column-major matrix to OpenCV-style rotation and translation.
-
-        Args:
-            gt_pose (list/np.ndarray): A 16-element flat list representing the 4x4 transformation matrix.
-
-        Returns:
-            tuple: (R_opencv, t_opencv) representing the 3x3 rotation matrix and 3x1 translation vector in OpenCV coordinates.
-        """
-        
-        gt_matrix = np.array(gt_pose).reshape(4, 4).T
+        # 1. Handle input if it's already a matrix or still a list
+        if isinstance(gt_pose, list) or (isinstance(gt_pose, np.ndarray) and gt_pose.size == 16):
+            # ARFrame is Row-Major for translation at [3, 7, 11]
+            gt_matrix = np.array(gt_pose).reshape(4, 4)
+        else:
+            gt_matrix = gt_pose
+            
         R_raw = gt_matrix[:3, :3]
         t_raw = gt_matrix[:3, 3]
 
-        flip_yz = np.array([
-            [1,  0,  0],
-            [0, 0,  -1],
-            [0,  1, 0]
+        # 2. The "Corrective" Matrix
+        # Based on your DEBUG: X must be negated, and Y/Z need a 90-deg correction
+        # This matrix swaps/flips axes to move from ARKit-space to Model-space
+        transform = np.array([
+            [-1,  0,  0], # Flip X (solves the +/- 0.20 mismatch)
+            [ 0,  0,  1], # Map Z to Y
+            [ 0, -1,  0]  # Map -Y to Z
         ])
         
-        R_opencv = flip_yz @ R_raw
-        t_opencv = flip_yz @ t_raw
+        R_opencv = transform @ R_raw
+        t_opencv = transform @ t_raw
+        
         return R_opencv, t_opencv
 
     @staticmethod
@@ -318,24 +318,20 @@ class Evaluator:
     def get_gt_poses(folder_path):
         json_files = sorted(glob.glob(os.path.join(folder_path, "frame_*.json")))
         gt_matrices = []
-        
-        # Load the FIRST frame to use as a reference (Identity)
-        with open(json_files[0], 'r') as f:
-            first_data = json.load(f)
-            # Convert 16-item list to 4x4 matrix
-            first_pose = np.array(first_data['cameraPoseARFrame']).reshape(4, 4).T
-            # We want the inverse of the first pose to bring everything to a local origin
-            first_pose_inv = np.linalg.inv(first_pose)
+        first_pose_inv = None
 
-        for f in json_files:
+        for i, f in enumerate(json_files):
             with open(f, 'r') as j:
                 data = json.load(j)
-                current_pose = np.array(data['cameraPoseARFrame']).reshape(4, 4).T
+                # Load as Row-Major to get translation from the last column correctly
+                matrix = np.array(data['cameraPoseARFrame']).reshape(4, 4)
                 
-                # CALCULATE RELATIVE POSE: This makes Frame 0 the [0,0,0] origin
-                relative_pose = first_pose_inv @ current_pose
-                
-                # Flatten it back to 16 items or return the 4x4
-                gt_matrices.append(relative_pose)
+                if i == 0:
+                    first_pose_inv = np.linalg.inv(matrix)
+                    gt_matrices.append(np.eye(4))
+                else:
+                    # Calculate trajectory relative to the first frame
+                    relative_pose = first_pose_inv @ matrix
+                    gt_matrices.append(relative_pose)
                     
         return gt_matrices
