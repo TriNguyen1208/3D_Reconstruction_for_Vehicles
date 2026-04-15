@@ -255,6 +255,7 @@ class Evaluator:
 
         return accuracy, completeness, (accuracy + completeness) / 2.0
     
+    @staticmethod
     def get_gt_points(folder_path):
         """
         This function searches for a single .obj file in the specified folder 
@@ -288,6 +289,7 @@ class Evaluator:
         
         return gt_points
     
+    @staticmethod
     def get_gt_poses(folder_path):
         json_files = sorted(glob.glob(os.path.join(folder_path, "frame_*.json")))
         gt_trajectories = []
