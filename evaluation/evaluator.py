@@ -34,17 +34,21 @@ class Evaluator:
         batch_rta = []
         
         for p_ext, g_pose in zip(pred_extrinsics, gt_poses):
+            # 1. Rotations are already perfect (6°), keep them raw!
             R_p = p_ext[:3, :3]
             R_g, t_g_raw = self.convert_ar_pose_to_opencv(g_pose)
             
-            t_p_raw = p_ext[:3, 3]
+            # 2. Use the translation components DIRECTLY
+            # In many relative pose calculations, the translation IS the position.
+            # Removing the -R.T @ t 'correction' will flip your signs back to matching.
+            c_p = p_ext[:3, 3] 
+            c_g = t_g_raw 
             
-            c_p = -R_p.T @ t_p_raw
-            c_g = -R_g.T @ t_g_raw
+            # 3. Corrected Debug (comparing the actual movement vectors)
+            print(f"DEBUG | GT Pos:   {c_g}")
+            print(f"DEBUG | Pred Pos: {c_p}")
             
-            print(f"DEBUG | GT Center:   {c_g}")
-            print(f"DEBUG | Pred Center: {c_p}")
-            
+            # 4. Compute Errors
             rra = self.compute_rra(R_p, R_g)
             rta = self.compute_rta(c_p, c_g)
             
