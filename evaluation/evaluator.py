@@ -335,7 +335,7 @@ class Evaluator:
                 else:
                     # Calculate trajectory relative to the first frame
                     # relative_pose = first_pose_inv @ matrix
-                    relative_pose = matrix @ first_pose_inv
+                    relative_pose = np.linalg.inv(first_pose_inv @ matrix)
                     gt_matrices.append(relative_pose)
                     
         return gt_matrices
