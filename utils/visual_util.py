@@ -15,10 +15,8 @@ import os
 import requests
 
 def save_to_obj(
-    model,
-    target_dir,
-    output_dir,
-    yolo,
+    predictions,
+    obj_path,
     conf_thres=None,
     frame_filter="All",
     mask_black_bg=False,
@@ -26,29 +24,23 @@ def save_to_obj(
     show_cam=False,
     mask_sky=False,
     prediction_mode="Pointmap Regression",
+    is_fg_mask=False
 ):
+    if not is_fg_mask:
+        conf_thres = 30.0
     import os, time, gc
     import numpy as np
     import torch
 
-    if not os.path.isdir(target_dir):
-        raise ValueError("Invalid target directory")
-
     gc.collect()
     torch.cuda.empty_cache()
 
-    print("Running model...")
-    
-    with torch.no_grad():
-        predictions = run_model(target_dir, model, yolo)
-
     if frame_filter is None:
         frame_filter = "All"
-
-    # 🔥 đổi đuôi file
-    if not os.path.isdir(output_dir):
-        raise ValueError("Invalid output directory")
-    objfile = os.path.join(output_dir, "scene.obj")
+    
+    output_dir = os.path.dirname(obj_path)
+    if output_dir != "":
+        os.makedirs(output_dir, exist_ok=True)
 
     # Convert to mesh
     mesh = predictions_to_glb(
@@ -59,19 +51,18 @@ def save_to_obj(
         mask_white_bg=mask_white_bg,
         show_cam=show_cam,
         mask_sky=mask_sky,
-        target_dir=target_dir,
         prediction_mode=prediction_mode,
     )
 
     # 🔥 export sang OBJ
-    mesh.export(file_obj=objfile)
+    mesh.export(file_obj=obj_path)
 
     # Cleanup
     del predictions
     gc.collect()
     torch.cuda.empty_cache()
 
-    return objfile
+    return obj_path
 
 
 
