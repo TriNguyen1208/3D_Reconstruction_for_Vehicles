@@ -319,9 +319,23 @@ class Evaluator:
         json_files = sorted(glob.glob(os.path.join(folder_path, "frame_*.json")))
         gt_matrices = []
         
+        # Load the FIRST frame to use as a reference (Identity)
+        with open(json_files[0], 'r') as f:
+            first_data = json.load(f)
+            # Convert 16-item list to 4x4 matrix
+            first_pose = np.array(first_data['cameraPoseARFrame']).reshape(4, 4).T
+            # We want the inverse of the first pose to bring everything to a local origin
+            first_pose_inv = np.linalg.inv(first_pose)
+
         for f in json_files:
             with open(f, 'r') as j:
                 data = json.load(j)
-                gt_matrices.append(data['cameraPoseARFrame'])
-
-        return np.array(gt_matrices)
+                current_pose = np.array(data['cameraPoseARFrame']).reshape(4, 4).T
+                
+                # CALCULATE RELATIVE POSE: This makes Frame 0 the [0,0,0] origin
+                relative_pose = first_pose_inv @ current_pose
+                
+                # Flatten it back to 16 items or return the 4x4
+                gt_matrices.append(relative_pose)
+                    
+        return gt_matrices
