@@ -35,10 +35,10 @@ class Evaluator:
         
         for p_ext, g_pose in zip(pred_extrinsics, gt_poses):
             R_p = p_ext[:3, :3]
-            t_p = p_ext[:3, 3]
-            t_p = -R_p.T @ t_p_raw
+            t_p_raw = p_ext[:3, 3]
+            t_p = -R_p.T @ t_p
             
-            R_g, t_g = self.convert_ar_pose_to_opencv(g_pose)
+            R_g, t_g_raw = self.convert_ar_pose_to_opencv(g_pose)
             t_g = -R_g.T @ t_g_raw
             
             print(f"DEBUG: GT Translation: {t_g}")
