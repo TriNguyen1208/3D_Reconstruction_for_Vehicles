@@ -39,6 +39,9 @@ class Evaluator:
             
             R_g, t_g = self.convert_ar_pose_to_opencv(g_pose)
             
+            print(f"DEBUG: GT Translation: {t_g}")
+            print(f"DEBUG: Pred Translation: {t_p}")
+            
             rra = self.compute_rra(R_p, R_g)
             rta = self.compute_rta(t_p, t_g)
             
