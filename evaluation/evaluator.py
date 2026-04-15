@@ -229,7 +229,7 @@ class Evaluator:
         thresholds = np.linspace(0, threshold, 100)
         recalls = np.sum(combined_errors[:, None] <= thresholds, axis=0) / num_frames
         
-        auc_val = np.trapezoid(recalls, thresholds)
+        auc_val = np.trapz(recalls, thresholds)
         return (auc_val / threshold) * 100
 
     @staticmethod
