@@ -176,9 +176,9 @@ class Evaluator:
         # Based on your DEBUG: X must be negated, and Y/Z need a 90-deg correction
         # This matrix swaps/flips axes to move from ARKit-space to Model-space
         transform = np.array([
-            [-1,  0,  0], # Flip X (solves the +/- 0.20 mismatch)
-            [ 0,  0,  1], # Map Z to Y
-            [ 0, -1,  0]  # Map -Y to Z
+            [1,  0,  0], # Flip X (solves the +/- 0.20 mismatch)
+            [ 0,  -1,  0], # Map Z to Y
+            [ 0, 0,  -1]  # Map -Y to Z
         ])
         
         R_opencv = transform @ R_raw
