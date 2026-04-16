@@ -162,8 +162,8 @@ class Evaluator:
         s = (1.0 / var_s) * np.trace(np.diag(d) @ S)
         t = mu_t - s * (R @ mu_s)
         
-        transformed_source = s * (R @ source.T).T + t
-        return R, t, s, transformed_source
+        # transformed_source = s * (R @ source.T).T + t
+        return R, t, s
 
     @staticmethod
     def convert_ar_pose_to_opencv(gt_pose):

@@ -153,7 +153,6 @@ def main():
             print(np.round(aligned_standard_pred[i], 5))
 
         print(f"\n---> Hệ số tỷ lệ (Scale Factor) tìm được: {s_u:.4f}")
-        # print("Full Matrix:\n", predictions['extrinsic'][0, 0].cpu().numpy())
         # evaluator = Evaluator()
 
         # gt_points = evaluator.get_gt_points(args.path_dataset)        
