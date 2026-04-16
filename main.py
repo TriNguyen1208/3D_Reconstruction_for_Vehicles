@@ -94,33 +94,41 @@ def main():
         save_to_obj(predictions=predictions, obj_path=args.obj_path, is_fg_mask=args.fg_mask)
 
     if args.metrics:
-        # poses = [
-        #     0.77986317873001099,
-        #     0.20792730152606964,
-        #     -0.59040641784667969,
-        #     -2.3439559936523438,
-        #     0.024819901213049889,
-        #     0.93220281600952148,
-        #     0.36108434200286865,
-        #     0.43953561782836914,
-        #     0.62545788288116455,
-        #     -0.29625025391578674,
-        #     0.72182989120483398,
-        #     2.807391881942749,
-        #     0,
-        #     0,
-        #     0,
-        #     1
-        # ]
-
-        import numpy as np
         evaluator = Evaluator()
         gt_poses = evaluator.get_gt_poses(args.path_dataset)
+        
+        import numpy as np
+        
+        def get_relative_pose(poses):
+            # Đảm bảo poses là numpy array
+            poses = np.array(poses) 
+            
+            # Kiểm tra nếu là (S, 3, 4), ta cần chuyển tất cả sang (S, 4, 4)
+            if poses.shape[-2] == 3: 
+                new_poses = []
+                for p in poses:
+                    new_poses.append(np.vstack([p, [0, 0, 0, 1]]))
+                poses = np.array(new_poses)
 
-        print('=' * 10 + 'GT' + '=' * 10)
-        print(gt_poses[0])
-        print('=' * 10 + 'PRED' + '=' * 10)
-        print(predictions["extrinsic"][0])
+            # Tính ma trận nghịch đảo của khung hình đầu tiên
+            inv_p0 = np.linalg.inv(poses[0])
+            
+            relative_poses = []
+            for pi in poses:
+                # Phép nhân ma trận đồng nhất: P0^-1 * Pi
+                relative_poses.append(inv_p0 @ pi)
+                
+            return np.array(relative_poses)
+
+        standard_gt_poses = get_relative_pose(gt_poses)
+        standard_pred = get_relative_pose(predictions["extrinsic"])
+        
+        for i in range(len(standard_gt_poses)):
+            print(f'FRAME {i}')
+            print('=' * 10 + 'GT' + '=' * 10)
+            print(gt_poses[i])
+            print('=' * 10 + 'PRED' + '=' * 10)
+            print(predictions["extrinsic"][i])
         # print("Full Matrix:\n", predictions['extrinsic'][0, 0].cpu().numpy())
         # evaluator = Evaluator()
 
