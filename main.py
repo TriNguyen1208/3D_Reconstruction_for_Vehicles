@@ -120,7 +120,7 @@ def main():
         print('=' * 10 + 'GT' + '=' * 10)
         print(gt_poses[0])
         print('=' * 10 + 'PRED' + '=' * 10)
-        print(predictions["extrinsic"][0].shape)
+        print(predictions["extrinsic"][0])
         # print("Full Matrix:\n", predictions['extrinsic'][0, 0].cpu().numpy())
         # evaluator = Evaluator()
 
