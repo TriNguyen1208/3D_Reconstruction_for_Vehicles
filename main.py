@@ -123,12 +123,36 @@ def main():
         standard_gt_poses = get_relative_pose(gt_poses)
         standard_pred = get_relative_pose(predictions["extrinsic"])
         
+        gt_xyz = standard_gt_poses[:, :3, 3]
+        pred_xyz = standard_pred[:, :3, 3]
+
+        # 3. Tìm bộ tham số nắn quỹ đạo (R, t, s)
+        R_u, t_u, s_u = evaluator.apply_umeyama_alignment(pred_xyz, gt_xyz)
+
+        # 4. Tạo ma trận PRED đã được căn chỉnh (Aligned) để in ra so sánh
+        aligned_standard_pred = []
+        for i in range(len(standard_pred)):
+            p = standard_pred[i]
+            # Biến đổi phần Rotation: R_aligned = R_u @ R_original
+            new_R = R_u @ p[:3, :3]
+            # Biến đổi phần Translation: T_aligned = s * (R_u @ T_original) + t_u
+            new_t = s_u * (R_u @ p[:3, 3]) + t_u
+            
+            # Ghép lại thành ma trận 4x4
+            aligned_p = np.eye(4)
+            aligned_p[:3, :3] = new_R
+            aligned_p[:3, 3] = new_t
+            aligned_standard_pred.append(aligned_p)
+
+        # 5. In kết quả so sánh
         for i in range(len(standard_gt_poses)):
-            print(f'FRAME {i}')
-            print('=' * 20 + 'GT' + '=' * 20)
-            print(standard_gt_poses[i])
-            print('=' * 20 + 'PRED' + '=' * 20)
-            print(standard_pred[i])
+            print(f'\nFRAME {i}')
+            print('=' * 20 + ' GT (Relative) ' + '=' * 20)
+            print(np.round(standard_gt_poses[i], 5))
+            print('=' * 20 + ' PRED (Aligned & Scaled) ' + '=' * 20)
+            print(np.round(aligned_standard_pred[i], 5))
+
+        print(f"\n---> Hệ số tỷ lệ (Scale Factor) tìm được: {s_u:.4f}")
         # print("Full Matrix:\n", predictions['extrinsic'][0, 0].cpu().numpy())
         # evaluator = Evaluator()
 
