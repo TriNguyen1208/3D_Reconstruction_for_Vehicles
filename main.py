@@ -118,7 +118,7 @@ def main():
         gt_poses = evaluator.get_gt_poses(args.path_dataset)
 
         print('=' * 10 + 'GT' + '=' * 10)
-        print(matrix)
+        print(gt_poses[0])
         print('=' * 10 + 'PRED' + '=' * 10)
         print(predictions["extrinsic"][0].shape)
         # print("Full Matrix:\n", predictions['extrinsic'][0, 0].cpu().numpy())
