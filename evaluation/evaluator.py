@@ -34,7 +34,6 @@ class Evaluator:
         batch_rta = []
         
         for p_ext, g_pose in zip(pred_extrinsics, gt_poses):
-            # 1. Rotations are already perfect (6°), keep them raw!
             R_p = p_ext[:3, :3]
             R_g, t_g_raw = self.convert_ar_pose_to_opencv(g_pose)
             
