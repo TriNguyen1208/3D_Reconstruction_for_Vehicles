@@ -320,7 +320,10 @@ class Evaluator:
     def get_gt_poses(folder_path):
         json_files = sorted(glob.glob(os.path.join(folder_path, "frame_*.json")))
         gt_matrices = []
-        first_pose_inv = None
+        # first_pose_inv = None
+
+        # DEBUG
+        json_files = json_files[:5]
 
         for i, f in enumerate(json_files):
             with open(f, 'r') as j:
@@ -328,12 +331,13 @@ class Evaluator:
                 # Load as Row-Major to get translation from the last column correctly
                 matrix = np.array(data['cameraPoseARFrame']).reshape(4, 4)
                 
-                if i == 0:
-                    first_pose_inv = np.linalg.inv(matrix)
-                    gt_matrices.append(np.eye(4))
-                else:
-                    # Calculate trajectory relative to the first frame
-                    relative_pose = first_pose_inv @ matrix
-                    gt_matrices.append(relative_pose)
+                # if i == 0:
+                #     first_pose_inv = np.linalg.inv(matrix)
+                #     gt_matrices.append(np.eye(4))
+                # else:
+                #     # Calculate trajectory relative to the first frame
+                #     relative_pose = first_pose_inv @ matrix
+                #     gt_matrices.append(relative_pose)
+                gt_matrices.append(matrix)
                     
         return gt_matrices

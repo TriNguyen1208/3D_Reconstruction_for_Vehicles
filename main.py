@@ -94,33 +94,33 @@ def main():
         save_to_obj(predictions=predictions, obj_path=args.obj_path, is_fg_mask=args.fg_mask)
 
     if args.metrics:
-        poses = [
-            0.77986317873001099,
-            0.20792730152606964,
-            -0.59040641784667969,
-            -2.3439559936523438,
-            0.024819901213049889,
-            0.93220281600952148,
-            0.36108434200286865,
-            0.43953561782836914,
-            0.62545788288116455,
-            -0.29625025391578674,
-            0.72182989120483398,
-            2.807391881942749,
-            0,
-            0,
-            0,
-            1
-        ]
+        # poses = [
+        #     0.77986317873001099,
+        #     0.20792730152606964,
+        #     -0.59040641784667969,
+        #     -2.3439559936523438,
+        #     0.024819901213049889,
+        #     0.93220281600952148,
+        #     0.36108434200286865,
+        #     0.43953561782836914,
+        #     0.62545788288116455,
+        #     -0.29625025391578674,
+        #     0.72182989120483398,
+        #     2.807391881942749,
+        #     0,
+        #     0,
+        #     0,
+        #     1
+        # ]
 
         import numpy as np
-
-        matrix = np.array(poses).reshape(4, 4)
+        evaluator = Evaluator()
+        gt_poses = evaluator.get_gt_poses(args.path_dataset)
 
         print('=' * 10 + 'GT' + '=' * 10)
         print(matrix)
         print('=' * 10 + 'PRED' + '=' * 10)
-        print(predictions["extrinsic"].shape)
+        print(predictions["extrinsic"][0].shape)
         # print("Full Matrix:\n", predictions['extrinsic'][0, 0].cpu().numpy())
         # evaluator = Evaluator()
 
