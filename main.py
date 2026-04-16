@@ -120,7 +120,8 @@ def main():
         print('=' * 10 + 'GT' + '=' * 10)
         print(matrix)
         print('=' * 10 + 'PRED' + '=' * 10)
-        print(predictions["extrinsic"][0, 0])
+        print(predictions["extrinsic"][0, 0].shape)
+        print("Full Matrix:\n", predictions['extrinsic'][0, 0].cpu().numpy())
         # evaluator = Evaluator()
 
         # gt_points = evaluator.get_gt_points(args.path_dataset)        
