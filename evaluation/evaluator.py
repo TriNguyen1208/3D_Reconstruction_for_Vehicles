@@ -24,7 +24,7 @@ class Evaluator:
             pred_extrinsics (list or np.ndarray): Extrinsic camera matrices for all frames 
                 (e.g., shape N x 3 x 4).
             gt_poses (list or np.ndarray): Ground Truth ARFrame matrices for all frames 
-                (e.g., shape N x 16).
+                (e.g., shape N x 4 x 4).
 
         Returns:
             tuple: (batch_rra, batch_rta) containing lists of errors for the processed sequence.
@@ -33,23 +33,24 @@ class Evaluator:
         batch_rra = []
         batch_rta = []
         
-        for p_ext, g_pose in zip(pred_extrinsics, gt_poses):
-            R_p = p_ext[:3, :3]
-            R_g, t_g_raw = self.convert_ar_pose_to_opencv(g_pose)
-            
-            # 2. Use the translation components DIRECTLY
-            # In many relative pose calculations, the translation IS the position.
-            # Removing the -R.T @ t 'correction' will flip your signs back to matching.
-            c_p = p_ext[:3, 3] 
-            c_g = t_g_raw 
-            
-            # 3. Corrected Debug (comparing the actual movement vectors)
-            # print(f"DEBUG | GT Pos:   {c_g}")
-            # print(f"DEBUG | Pred Pos: {c_p}")
-            
-            # 4. Compute Errors
+        standard_pred = self.get_relative_pose(pred_extrinsics)
+        standard_gt_poses = self.get_relative_pose(gt_poses)
+        
+        pred_xyz = np.array([p[:3, 3] for p in standard_pred])
+        gt_xyz = np.array([g[:3, 3] for g in standard_gt_poses])
+        
+        R_u, t_u, s_u = self.apply_umeyama_alignment(pred_xyz, gt_xyz)
+        
+        for i in range(len(standard_pred)):
+            R_p = standard_pred[i][:3, :3]
+            R_g = standard_gt_poses[i][:3, :3]
             rra = self.compute_rra(R_p, R_g)
-            rta = self.compute_rta(c_p, c_g)
+            
+            t_p_original = standard_pred[i][:3, 3]
+            aligned_t_p = s_u * (R_u @ t_p_original) + t_u
+            
+            t_g = standard_gt_poses[i][:3, 3]
+            rta = self.compute_rta(aligned_t_p, t_g)
             
             self.rra_errors.append(rra)
             self.rta_errors.append(rta)
@@ -136,6 +137,24 @@ class Evaluator:
 
         return result
 
+    @staticmethod
+    def get_relative_pose(poses):
+        poses = np.array(poses) 
+        
+        if poses.shape[-2] == 3: 
+            new_poses = []
+            for p in poses:
+                new_poses.append(np.vstack([p, [0, 0, 0, 1]]))
+            poses = np.array(new_poses)
+
+        inv_p0 = np.linalg.inv(poses[0])
+        
+        relative_poses = []
+        for pi in poses:
+            relative_poses.append(inv_p0 @ pi)
+            
+        return np.array(relative_poses)
+
 
     @staticmethod
     def apply_umeyama_alignment(source, target):
@@ -168,7 +187,6 @@ class Evaluator:
     @staticmethod
     def convert_ar_pose_to_opencv(gt_pose):
         if isinstance(gt_pose, list) or (isinstance(gt_pose, np.ndarray) and gt_pose.size == 16):
-            # ARFrame is Row-Major for translation at [3, 7, 11]
             gt_matrix = np.array(gt_pose).reshape(4, 4)
         else:
             gt_matrix = gt_pose
