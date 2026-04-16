@@ -14,6 +14,8 @@ def run_model(target_dir, model, yolo, device, is_fg_mask=True) -> dict:
     print(f"Processing images from {target_dir}")
 
     image_names = sorted(glob.glob(os.path.join(target_dir, "*.jpg")))
+    # DEBUG
+    image_names = image_names[:5]
     print(f"Found {len(image_names)} images")
     if len(image_names) == 0:
         raise ValueError(f"No images found in {target_dir}.")
