@@ -47,7 +47,6 @@ def run_model(target_dir, model, yolo, device, is_fg_mask=True) -> dict:
     skip_keys = {"pose_enc_list"}
 
     for key in list(predictions.keys()):
-        print(key)
         if key in skip_keys:
             predictions[key] = None
             continue
@@ -76,4 +75,4 @@ def run_model(target_dir, model, yolo, device, is_fg_mask=True) -> dict:
     predictions["images"] = images.cpu().numpy()
     torch.cuda.empty_cache()
     
-    return predictions, fg_mask
+    return predictions
