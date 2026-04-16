@@ -125,10 +125,10 @@ def main():
         
         for i in range(len(standard_gt_poses)):
             print(f'FRAME {i}')
-            print('=' * 10 + 'GT' + '=' * 10)
-            print(gt_poses[i])
-            print('=' * 10 + 'PRED' + '=' * 10)
-            print(predictions["extrinsic"][i])
+            print('=' * 20 + 'GT' + '=' * 20)
+            print(standard_gt_poses[i])
+            print('=' * 20 + 'PRED' + '=' * 20)
+            print(standard_pred["extrinsic"][i])
         # print("Full Matrix:\n", predictions['extrinsic'][0, 0].cpu().numpy())
         # evaluator = Evaluator()
 
