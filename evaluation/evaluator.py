@@ -1,4 +1,8 @@
 import numpy as np
+import os
+import json
+import trimesh
+import glob
 from scipy.spatial import cKDTree
 
 class Evaluator:
@@ -20,7 +24,7 @@ class Evaluator:
             pred_extrinsics (list or np.ndarray): Extrinsic camera matrices for all frames 
                 (e.g., shape N x 3 x 4).
             gt_poses (list or np.ndarray): Ground Truth ARFrame matrices for all frames 
-                (e.g., shape N x 16).
+                (e.g., shape N x 4 x 4).
 
         Returns:
             tuple: (batch_rra, batch_rta) containing lists of errors for the processed sequence.
@@ -29,18 +33,27 @@ class Evaluator:
         batch_rra = []
         batch_rta = []
         
-        for p_ext, g_pose in zip(pred_extrinsics, gt_poses):
-            R_p = p_ext[:3, :3]
-            t_p = p_ext[:3, 3]
-            
-            R_g, t_g = self.convert_ar_pose_to_opencv(g_pose)
-            
+        standard_pred = self.get_relative_pose(pred_extrinsics)
+        standard_gt_poses = self.get_relative_pose(gt_poses)
+        
+        pred_xyz = np.array([p[:3, 3] for p in standard_pred])
+        gt_xyz = np.array([g[:3, 3] for g in standard_gt_poses])
+        
+        R_u, t_u, s_u = self.apply_umeyama_alignment(pred_xyz, gt_xyz)
+        
+        for i in range(len(standard_pred)):
+            R_p = standard_pred[i][:3, :3]
+            R_g = standard_gt_poses[i][:3, :3]
             rra = self.compute_rra(R_p, R_g)
-            rta = self.compute_rta(t_p, t_g)
+            
+            t_p_original = standard_pred[i][:3, 3]
+            aligned_t_p = s_u * (R_u @ t_p_original) + t_u
+            
+            t_g = standard_gt_poses[i][:3, 3]
+            rta = self.compute_rta(aligned_t_p, t_g)
             
             self.rra_errors.append(rra)
             self.rta_errors.append(rta)
-            
             batch_rra.append(rra)
             batch_rta.append(rta)
             
@@ -78,33 +91,69 @@ class Evaluator:
 
     def get_summary(self):
         """
-        This function aggregates stored frame data to compute final benchmark metrics including AUC@30 and Mean Chamfer Distance.
-
-        Args:
-            None (uses internal state from accumulated frames).
-
-        Returns:
-            dict: A dictionary containing the sequence-level AUC score, mean Accuracy, mean Completeness, and Overall CD.
+        Aggregates frame data, computes final metrics, and prints a formatted 
+        summary table for research reporting.
         """
-        
         auc_score = self.compute_pose_auc(
             self.rra_errors, 
             self.rta_errors, 
             self.auc_threshold
         )
         
+        # Calculate means
+        acc_mean = np.mean(self.accuracies) if self.accuracies else float('inf')
+        comp_mean = np.mean(self.completenesses) if self.completenesses else float('inf')
+        overall_cd = (acc_mean + comp_mean) / 2 if self.accuracies else float('inf')
+        
+        # Helpful for debugging your 0.0 AUC
+        avg_rra = np.mean(self.rra_errors) if self.rra_errors else 0.0
+        avg_rta = np.mean(self.rta_errors) if self.rta_errors else 0.0
+
         result = {
             "num_frames": len(self.accuracies),
             "auc": auc_score,
-            "acc_mean": np.mean(self.accuracies) if self.accuracies else float('inf'),
-            "comp_mean": np.mean(self.completenesses) if self.completenesses else float('inf'),
-            "overall_cd": (np.mean(self.accuracies) + np.mean(self.completenesses)) / 2 if self.accuracies else float('inf')
+            "acc_mean": acc_mean,
+            "comp_mean": comp_mean,
+            "overall_cd": overall_cd,
+            "rra_avg": avg_rra,
+            "rta_avg": avg_rta
         }
-        
-        print(result)
-        
+
+        # Professional Table Printing
+        print("\n" + "="*45)
+        print(f"{'3D RECONSTRUCTION EVALUATION SUMMARY':^45}")
+        print("="*45)
+        print(f"{'Metric':<25} | {'Value':<15}")
+        print("-" * 45)
+        print(f"{'Frames Processed':<25} | {result['num_frames']:<15}")
+        print(f"{'AUC@' + str(self.auc_threshold):<25} | {result['auc']:<15.2f}")
+        print(f"{'Avg RRA (Rotation °)':<25} | {result['rra_avg']:<15.2f}")
+        print(f"{'Avg RTA (Transl. °)':<25} | {result['rta_avg']:<15.2f}")
+        print("-" * 45)
+        print(f"{'Accuracy':<25} | {result['acc_mean']:<15.6f}")
+        print(f"{'Completeness':<25} | {result['comp_mean']:<15.6f}")
+        print(f"{'Overall CD':<25} | {result['overall_cd']:<15.6f}")
+        print("="*45 + "\n")
+
         return result
 
+    @staticmethod
+    def get_relative_pose(poses):
+        poses = np.array(poses) 
+        
+        if poses.shape[-2] == 3: 
+            new_poses = []
+            for p in poses:
+                new_poses.append(np.vstack([p, [0, 0, 0, 1]]))
+            poses = np.array(new_poses)
+
+        inv_p0 = np.linalg.inv(poses[0])
+        
+        relative_poses = []
+        for pi in poses:
+            relative_poses.append(inv_p0 @ pi)
+            
+        return np.array(relative_poses)
 
 
     @staticmethod
@@ -132,34 +181,30 @@ class Evaluator:
         s = (1.0 / var_s) * np.trace(np.diag(d) @ S)
         t = mu_t - s * (R @ mu_s)
         
-        transformed_source = s * (R @ source.T).T + t
-        return R, t, s, transformed_source
+        # transformed_source = s * (R @ source.T).T + t
+        return R, t, s
 
     @staticmethod
     def convert_ar_pose_to_opencv(gt_pose):
-        """
-        This function converts a 16-element OpenGL-style column-major matrix to OpenCV-style rotation and translation.
-
-        Args:
-            gt_pose (list/np.ndarray): A 16-element flat list representing the 4x4 transformation matrix.
-
-        Returns:
-            tuple: (R_opencv, t_opencv) representing the 3x3 rotation matrix and 3x1 translation vector in OpenCV coordinates.
-        """
-        
-        gt_matrix = np.array(gt_pose).reshape(4, 4).T
+        if isinstance(gt_pose, list) or (isinstance(gt_pose, np.ndarray) and gt_pose.size == 16):
+            gt_matrix = np.array(gt_pose).reshape(4, 4)
+        else:
+            gt_matrix = gt_pose
+            
         R_raw = gt_matrix[:3, :3]
         t_raw = gt_matrix[:3, 3]
-
-        flip_yz = np.array([
+        
+        transform = np.array([
             [1,  0,  0],
-            [0, -1,  0],
-            [0,  0, -1]
+            [ 0,  -1,  0],
+            [ 0, 0,  -1]
         ])
         
-        R_opencv = np.dot(flip_yz, R_raw)
-        t_opencv = np.dot(flip_yz, t_raw)
-        return R_opencv, t_opencv
+        R_opencv = transform @ R_raw
+        t_opencv = transform @ t_raw
+        
+        # return R_opencv, t_opencv
+        return R_raw, t_raw
 
     @staticmethod
     def compute_rra(R_pred, R_gt):
@@ -225,7 +270,7 @@ class Evaluator:
         thresholds = np.linspace(0, threshold, 100)
         recalls = np.sum(combined_errors[:, None] <= thresholds, axis=0) / num_frames
         
-        auc_val = np.trapezoid(recalls, thresholds)
+        auc_val = np.trapz(recalls, thresholds)
         return (auc_val / threshold) * 100
 
     @staticmethod
@@ -255,6 +300,7 @@ class Evaluator:
 
         return accuracy, completeness, (accuracy + completeness) / 2.0
     
+    @staticmethod
     def get_gt_points(folder_path):
         """
         This function searches for a single .obj file in the specified folder 
@@ -288,15 +334,15 @@ class Evaluator:
         
         return gt_points
     
+    @staticmethod
     def get_gt_poses(folder_path):
         json_files = sorted(glob.glob(os.path.join(folder_path, "frame_*.json")))
-        gt_trajectories = []
-        
+        gt_matrices = []
+
         for f in json_files:
             with open(f, 'r') as j:
                 data = json.load(j)
                 matrix = np.array(data['cameraPoseARFrame']).reshape(4, 4)
-                translation = matrix[:3, 3]
-                gt_trajectories.append(translation)
-                
-        return np.array(gt_trajectories)
+                gt_matrices.append(matrix)
+                    
+        return gt_matrices
