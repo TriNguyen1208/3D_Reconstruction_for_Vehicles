@@ -54,7 +54,7 @@ class YoloSegment:
             pred_results = self.model.predict(
                 source=[img_bgr], conf=0.5, task="segment", save=False, verbose=False
             )
-
+    
             best_mask = None
             if pred_results and pred_results[0].masks is not None:
                 result = pred_results[0]
@@ -62,7 +62,7 @@ class YoloSegment:
                 center_x_img = img_w / 2
                 min_distance = float('inf')
                 masks_data = result.masks.data
-
+                best_box = None
                 # Tìm xe gần tâm ảnh nhất
                 for i, box in enumerate(result.boxes):
                     class_id = int(box.cls[0].item())
@@ -77,18 +77,48 @@ class YoloSegment:
                     if distance < min_distance:
                         min_distance = distance
                         best_mask = masks_data[i]
+                        best_box = box
 
             # 5. Xử lý Blending nếu tìm thấy xe
-            if best_mask is not None:
-                # Mask thô [H, W]
-                mask_np = best_mask.detach().cpu().numpy()
-                if mask_np.shape != (H, W):
-                    mask_np = cv2.resize(
-                        mask_np.astype(np.float32), (W, H), interpolation=cv2.INTER_NEAREST
-                    )
+            # if best_mask is not None:
+            #     # Mask thô [H, W]
+            #     mask_np = best_mask.detach().cpu().numpy()
+            #     if mask_np.shape != (H, W):
+            #         mask_np = cv2.resize(
+            #             mask_np.astype(np.float32), (W, H), interpolation=cv2.INTER_NEAREST
+            #         )
                 
-                # A. Binary Mask (Để nguyên 0 và 1 phục vụ lọc Point Cloud sau này)
-                binary_mask = (mask_np > 0.5).astype(np.float32)
+            #     # A. Binary Mask (Để nguyên 0 và 1 phục vụ lọc Point Cloud sau này)
+            #     binary_mask = (mask_np > 0.5).astype(np.float32)
+                
+            #     # B. Soft Mask (Làm mờ viền mask để ghép ảnh không bị răng cưa)
+            #     soft_mask = cv2.GaussianBlur(binary_mask, mask_blur_ksize, 0)
+            #     soft_mask_3d = soft_mask[:, :, None]  # [H, W, 1]
+                
+            #     # C. Làm mờ ảnh nền (Gaussian Blur)
+            #     bg_blurred = cv2.GaussianBlur(img_np, bg_blur_ksize, 0)
+                
+            #     # D. ALPHA BLENDING: Giữ nguyên vùng xe, làm mờ vùng nền
+            #     # Thực hiện trên hệ Float [0, 1] để tránh sai số
+            #     blended_np = img_np * soft_mask_3d + bg_blurred * (1.0 - soft_mask_3d)
+                
+            #     # Trả về Tensor
+            #     blended_t = torch.from_numpy(blended_np).permute(2, 0, 1).to(orig_dtype)
+            #     mask_t = torch.from_numpy(binary_mask).to(orig_dtype)
+                
+            #     blended_images.append(blended_t)
+            #     fg_masks.append(mask_t)
+            # else:
+            #     # Fallback: Không tìm thấy xe thì giữ nguyên ảnh gốc và mask = 0
+            #     fg_masks.append(torch.zeros((H, W), dtype=orig_dtype))
+            #     blended_images.append(img_t)
+
+            #6: Test với box
+            if best_box is not None:
+                binary_mask = np.zeros((H, W), dtype=np.float32)
+                x1, y1, x2, y2 = map(int, best_box.xyxy[0])
+                x1, y1, x2, y2 = max(0, x1), max(0, y1), min(W, x2), min(H, y2)
+                binary_mask[y1:y2, x1:x2] = 1.0
                 
                 # B. Soft Mask (Làm mờ viền mask để ghép ảnh không bị răng cưa)
                 soft_mask = cv2.GaussianBlur(binary_mask, mask_blur_ksize, 0)
